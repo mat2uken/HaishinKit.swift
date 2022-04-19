@@ -13,7 +13,6 @@ open class LocalStream: NetStream {
 
     open private(set) var recording: Bool = false {
         didSet {
-            print("recording: ", recording)
             guard oldValue != recording else {
                 return
             }
@@ -26,7 +25,6 @@ open class LocalStream: NetStream {
                 mixer.audioIO.codec.stopRunning()
                 mixer.videoIO.encoder.stopRunning()
                 mixer.recorder.stopRunning()
-                mixer.recorder.finishWriting()
             }
 
             if recording {
