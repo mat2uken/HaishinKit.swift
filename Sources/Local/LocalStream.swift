@@ -19,18 +19,13 @@ open class LocalStream: NetStream {
 
             if oldValue {
                 // was recording
-                #if os(iOS)
-                    mixer.videoIO.screen?.stopRunning()
-                #endif
                 mixer.audioIO.codec.stopRunning()
                 mixer.videoIO.encoder.stopRunning()
                 mixer.recorder.stopRunning()
+                mixer.stopRunning()
             }
 
             if recording {
-                #if os(iOS)
-                    mixer.videoIO.screen?.startRunning()
-                #endif
                 mixer.startRunning()
                 mixer.audioIO.codec.startRunning()
                 mixer.videoIO.encoder.startRunning()
@@ -57,6 +52,7 @@ open class LocalStream: NetStream {
 
             self.resourceName = name
             self.recording = true
+            self.resume()
         }
     }
 
@@ -64,7 +60,6 @@ open class LocalStream: NetStream {
         if !recording {
             return
         }
-        //record(nil)
         lockQueue.sync {
             self.recording = false
         }
@@ -75,6 +70,7 @@ open class LocalStream: NetStream {
             self.paused = true
             if self.recording {
                 self.mixer.audioIO.codec.muted = true
+                self.mixer.videoIO.encoder.muted = true
             }
         }
     }
