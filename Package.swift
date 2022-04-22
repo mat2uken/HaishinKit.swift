@@ -21,6 +21,7 @@ let package = Package(
                 dependencies: ["Logboard", "SwiftPMSupport"],
                 path: "Sources",
                 sources: [
+                    "Local",
                     "Codec",
                     "Extension",
                     "FLV",
