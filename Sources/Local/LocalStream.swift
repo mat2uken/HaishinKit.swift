@@ -19,18 +19,22 @@ open class LocalStream: NetStream {
 
             if oldValue {
                 // was recording
-                mixer.audioIO.codec.stopRunning()
-                mixer.videoIO.encoder.stopRunning()
-                mixer.recorder.stopRunning()
-                mixer.stopRunning()
+                lockQueue.sync {
+                    mixer.audioIO.codec.stopRunning()
+                    mixer.videoIO.encoder.stopRunning()
+                    mixer.recorder.stopRunning()
+                    mixer.stopRunning()
+                }
             }
 
             if recording {
-                mixer.startRunning()
-                mixer.audioIO.codec.startRunning()
-                mixer.videoIO.encoder.startRunning()
-                mixer.recorder.fileName = resourceName
-                mixer.recorder.startRunning()
+                lockQueue.sync {
+                    mixer.startRunning()
+                    mixer.audioIO.codec.startRunning()
+                    mixer.videoIO.encoder.startRunning()
+                    mixer.recorder.fileName = resourceName
+                    mixer.recorder.startRunning()
+                }
             }
         }
     }
