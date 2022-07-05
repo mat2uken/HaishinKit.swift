@@ -83,7 +83,7 @@ final class AVVideoIOUnit: NSObject, AVIOUnit {
             guard
                 let device: AVCaptureDevice = (input as? AVCaptureDeviceInput)?.device,
                 let data = device.actualFPS(fps) else {
-                    return
+                return
             }
 
             fps = data.fps
@@ -154,9 +154,9 @@ final class AVVideoIOUnit: NSObject, AVIOUnit {
             }
             let focusMode: AVCaptureDevice.FocusMode = continuousAutofocus ? .continuousAutoFocus : .autoFocus
             guard let device: AVCaptureDevice = (input as? AVCaptureDeviceInput)?.device,
-                device.isFocusModeSupported(focusMode) else {
-                    logger.warn("focusMode(\(focusMode.rawValue)) is not supported")
-                    return
+                  device.isFocusModeSupported(focusMode) else {
+                logger.warn("focusMode(\(focusMode.rawValue)) is not supported")
+                return
             }
             do {
                 try device.lockForConfiguration()
@@ -174,7 +174,7 @@ final class AVVideoIOUnit: NSObject, AVIOUnit {
                 let device: AVCaptureDevice = (input as? AVCaptureDeviceInput)?.device,
                 let point: CGPoint = focusPointOfInterest,
                 device.isFocusPointOfInterestSupported else {
-                    return
+                return
             }
             do {
                 try device.lockForConfiguration()
@@ -193,7 +193,7 @@ final class AVVideoIOUnit: NSObject, AVIOUnit {
                 let device: AVCaptureDevice = (input as? AVCaptureDeviceInput)?.device,
                 let point: CGPoint = exposurePointOfInterest,
                 device.isExposurePointOfInterestSupported else {
-                    return
+                return
             }
             do {
                 try device.lockForConfiguration()
@@ -213,9 +213,9 @@ final class AVVideoIOUnit: NSObject, AVIOUnit {
             }
             let exposureMode: AVCaptureDevice.ExposureMode = continuousExposure ? .continuousAutoExposure : .autoExpose
             guard let device: AVCaptureDevice = (input as? AVCaptureDeviceInput)?.device,
-                device.isExposureModeSupported(exposureMode) else {
-                    logger.warn("exposureMode(\(exposureMode.rawValue)) is not supported")
-                    return
+                  device.isExposureModeSupported(exposureMode) else {
+                logger.warn("exposureMode(\(exposureMode.rawValue)) is not supported")
+                return
             }
             do {
                 try device.lockForConfiguration()
@@ -320,9 +320,12 @@ final class AVVideoIOUnit: NSObject, AVIOUnit {
 
         output = nil
         guard let camera: AVCaptureDevice = camera else {
+            mixer.mediaSync = .passthrough
             input = nil
             return
         }
+
+        mixer.mediaSync = .video
         #if os(iOS)
         screen = nil
         #endif
@@ -443,6 +446,9 @@ extension AVVideoIOUnit {
 extension AVVideoIOUnit: AVCaptureVideoDataOutputSampleBufferDelegate {
     // MARK: AVCaptureVideoDataOutputSampleBufferDelegate
     func captureOutput(_ captureOutput: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard mixer?.useSampleBuffer(sampleBuffer: sampleBuffer, mediaType: AVMediaType.video) == true else {
+            return
+        }
         #if os(macOS)
         if connection.isVideoMirrored {
             sampleBuffer.reflectHorizontal()

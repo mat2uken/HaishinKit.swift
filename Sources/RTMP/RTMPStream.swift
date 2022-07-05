@@ -25,8 +25,8 @@ public extension RTMPStreamDelegate {
  */
 open class RTMPStream: NetStream {
     /**
-      - NetStatusEvent#info.code for NetStream
-        - see: https://help.adobe.com/en_US/air/reference/html/flash/events/NetStatusEvent.html#NET_STATUS
+     - NetStatusEvent#info.code for NetStream
+     - see: https://help.adobe.com/en_US/air/reference/html/flash/events/NetStatusEvent.html#NET_STATUS
      */
     public enum Code: String {
         case bufferEmpty               = "NetStream.Buffer.Empty"
@@ -455,16 +455,16 @@ open class RTMPStream: NetStream {
         }
         readyState = .open
         rtmpConnection.socket?.doOutput(chunk: RTMPChunk(
-            type: .zero,
-            streamId: RTMPChunk.StreamID.command.rawValue,
-            message: RTMPCommandMessage(
-                streamId: 0,
-                transactionId: 0,
-                objectEncoding: self.objectEncoding,
-                commandName: "closeStream",
-                commandObject: nil,
-                arguments: [self.id]
-        )), locked: nil)
+                                            type: .zero,
+                                            streamId: RTMPChunk.StreamID.command.rawValue,
+                                            message: RTMPCommandMessage(
+                                                streamId: 0,
+                                                transactionId: 0,
+                                                objectEncoding: self.objectEncoding,
+                                                commandName: "closeStream",
+                                                commandObject: nil,
+                                                arguments: [self.id]
+                                            )), locked: nil)
     }
 
     func on(timer: Timer) {
@@ -479,13 +479,7 @@ open class RTMPStream: NetStream {
             mixer.stopDecoding()
         case .publishing:
             FCUnpublish()
-            #if os(iOS)
-                mixer.videoIO.screen?.stopRunning()
-            #endif
-            mixer.audioIO.codec.delegate = nil
-            mixer.videoIO.encoder.delegate = nil
-            mixer.audioIO.codec.stopRunning()
-            mixer.videoIO.encoder.stopRunning()
+            mixer.stopEncoding()
             mixer.recorder.stopRunning()
         default:
             break
@@ -518,19 +512,13 @@ open class RTMPStream: NetStream {
         case .publish:
             muxer.dispose()
             muxer.delegate = self
-            #if os(iOS)
-                mixer.videoIO.screen?.startRunning()
-            #endif
-            mixer.audioIO.codec.delegate = muxer
-            mixer.videoIO.encoder.delegate = muxer
             mixer.startRunning()
             videoWasSent = false
             audioWasSent = false
             FCPublish()
         case .publishing:
             send(handlerName: "@setDataFrame", arguments: "onMetaData", createMetaData())
-            mixer.audioIO.codec.startRunning()
-            mixer.videoIO.encoder.startRunning()
+            mixer.startEncoding(delegate: muxer)
             if howToPublish == .localRecord {
                 mixer.recorder.fileName = FilenameUtil.fileName(resourceName: info.resourceName)
                 mixer.recorder.startRunning()
