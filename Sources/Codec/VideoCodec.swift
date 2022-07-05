@@ -6,13 +6,35 @@ import VideoToolbox
 import UIKit
 #endif
 
+/**
+ * The interface a VideoCodec uses to inform its delegate.
+ */
 public protocol VideoCodecDelegate: AnyObject {
+    /// Tells the receiver to set a formatDescription.
     func videoCodec(_ codec: VideoCodec, didSet formatDescription: CMFormatDescription?)
+    /// Tells the receiver to output a encoded or decoded sampleBuffer.
     func videoCodec(_ codec: VideoCodec, didOutput sampleBuffer: CMSampleBuffer)
+    /// Tells the receiver to occured an error.
+    func videoCodec(_ codec: VideoCodec, errorOccurred error: VideoCodec.Error)
 }
 
 // MARK: -
-public final class VideoCodec {
+/**
+ * The VideoCodec class provides methods for encode or decode for video.
+ */
+public class VideoCodec {
+    /**
+     * The VideoCodec error domain codes.
+     */
+    public enum Error: Swift.Error {
+        /// The VideoCodec failed to create the VTSession.
+        case failedToCreate(status: OSStatus)
+        /// The VideoCodec failed to prepare the VTSession.
+        case failedToPrepare(status: OSStatus)
+        /// The VideoCodec failed to encode or decode a flame.
+        case failedToFlame(status: OSStatus)
+    }
+
     /**
      * The video encoding or decoding options.
      */
@@ -60,21 +82,27 @@ public final class VideoCodec {
         }
     }
 
+    /// The videoCodec's width value. The default value is 480.
     public static let defaultWidth: Int32 = 480
+    /// The videoCodec's height value. The default value is 272.
     public static let defaultHeight: Int32 = 272
+    /// The videoCodec's bitrate value. The default value is 160,000.
     public static let defaultBitrate: UInt32 = 160 * 1000
+    /// The videoCodec's scalingMode value. The default value is trim.
     public static let defaultScalingMode: ScalingMode = .trim
-
-    static let defaultAttributes: [NSString: AnyObject] = [
+    /// The videoCodec's attributes value.
+    public static var defaultAttributes: [NSString: AnyObject]? = [
         kCVPixelBufferIOSurfacePropertiesKey: [:] as AnyObject,
         kCVPixelBufferMetalCompatibilityKey: kCFBooleanTrue
     ]
 
+    /// Specifies the settings for a VideoCodec.
     public var settings: Setting<VideoCodec, Option> = [:] {
         didSet {
             settings.observer = self
         }
     }
+    /// The running value indicating whether the VideoCodec is running.
     public private(set) var isRunning: Atomic<Bool> = .init(false)
 
     var muted = false
@@ -157,9 +185,14 @@ public final class VideoCodec {
     }
     weak var delegate: VideoCodecDelegate?
 
-    private(set) var status: OSStatus = noErr
-    private var attributes: [NSString: AnyObject] {
-        var attributes: [NSString: AnyObject] = VideoCodec.defaultAttributes
+    private var attributes: [NSString: AnyObject]? {
+        guard VideoCodec.defaultAttributes != nil else {
+            return nil
+        }
+        var attributes: [NSString: AnyObject] = [:]
+        for (key, value) in VideoCodec.defaultAttributes ?? [:] {
+            attributes[key] = value
+        }
         attributes[kCVPixelBufferWidthKey] = NSNumber(value: width)
         attributes[kCVPixelBufferHeightKey] = NSNumber(value: height)
         return attributes
@@ -167,7 +200,7 @@ public final class VideoCodec {
     private var invalidateSession = true
     private var lastImageBuffer: CVImageBuffer?
 
-    // @see: https://developer.apple.com/library/mac/releasenotes/General/APIDiffsMacOSX10_8/VideoToolbox.html
+    /// - seealso: https://developer.apple.com/library/mac/releasenotes/General/APIDiffsMacOSX10_8/VideoToolbox.html
     private var properties: [NSString: NSObject] {
         let isBaseline: Bool = profileLevel.contains("Baseline")
         var properties: [NSString: NSObject] = [
@@ -199,16 +232,19 @@ public final class VideoCodec {
     }
 
     private var callback: VTCompressionOutputCallback = {(outputCallbackRefCon: UnsafeMutableRawPointer?, _: UnsafeMutableRawPointer?, status: OSStatus, _: VTEncodeInfoFlags, sampleBuffer: CMSampleBuffer?) in
+        guard let refcon = outputCallbackRefCon else {
+            return
+        }
+        let codec = Unmanaged<VideoCodec>.fromOpaque(refcon).takeUnretainedValue()
         guard
-            let refcon: UnsafeMutableRawPointer = outputCallbackRefCon,
             let sampleBuffer: CMSampleBuffer = sampleBuffer, status == noErr else {
             if status == kVTParameterErr {
                 // on iphone 11 with size=1792x827 this occurs
                 logger.error("encoding failed with kVTParameterErr. Perhaps the width x height is too big for the encoder setup?")
+                codec.delegate?.videoCodec(codec, errorOccurred: .failedToFlame(status: status))
             }
             return
         }
-        let codec: VideoCodec = Unmanaged<VideoCodec>.fromOpaque(refcon).takeUnretainedValue()
         codec.formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer)
         codec.delegate?.videoCodec(codec, didOutput: sampleBuffer)
     }
@@ -217,7 +253,7 @@ public final class VideoCodec {
     private var session: VTCompressionSession? {
         get {
             if _session == nil {
-                guard VTCompressionSessionCreate(
+                var status: OSStatus = VTCompressionSessionCreate(
                     allocator: kCFAllocatorDefault,
                     width: width,
                     height: height,
@@ -228,8 +264,10 @@ public final class VideoCodec {
                     outputCallback: callback,
                     refcon: Unmanaged.passUnretained(self).toOpaque(),
                     compressionSessionOut: &_session
-                ) == noErr, let session = _session else {
+                )
+                guard status == noErr, let session = _session else {
                     logger.warn("create a VTCompressionSessionCreate")
+                    delegate?.videoCodec(self, errorOccurred: .failedToCreate(status: status))
                     return nil
                 }
                 invalidateSession = false
@@ -237,6 +275,7 @@ public final class VideoCodec {
                 status = session.prepareToEncodeFrame()
                 guard status == noErr else {
                     logger.error("setup failed VTCompressionSessionPrepareToEncodeFrames. Size = \(width)x\(height)")
+                    delegate?.videoCodec(self, errorOccurred: .failedToPrepare(status: status))
                     return nil
                 }
             }
@@ -282,7 +321,7 @@ public final class VideoCodec {
             guard let session: VTCompressionSession = self._session else {
                 return
             }
-            self.status = VTSessionSetProperty(
+            VTSessionSetProperty(
                 session,
                 key: key,
                 value: value

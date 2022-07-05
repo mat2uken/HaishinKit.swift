@@ -56,13 +56,13 @@ Enterprise Grade APIs for Feeds & Chat. <a href="https://getstream.io/tutorials/
 - [x] HLS Publish
 
 ### Rendering
-|-|HKView|MTHKView|
-|-|:---:|:---:|
-|Engine|AVCaptureVideoPreviewLayer|Metal|
-|Publish|○|◯|
-|Playback|×|◯|
-|VisualEffect|×|◯|
-|Condition|Stable|Stable|
+|-|HKView|MTHKView|PiPHKView|
+|-|:---:|:---:|:---:|
+|Engine|AVCaptureVideoPreviewLayer|Metal|AVSampleBufferDisplayLayer|
+|Publish|○|◯|○|
+|Playback|×|◯|○|
+|VisualEffect|×|◯|○|
+|Condition|Stable|Stable|Stable|
 
 ### Others
 - [x] _Support tvOS 10.2+  (Technical Preview)_
@@ -180,7 +180,7 @@ rtmpStream.publish("streamName")
 // rtmpStream.publish("streamName", type: .localRecord)
 ```
 
-### RTML URL Format
+### RTMP URL Format
 * rtmp://server-ip-address[:port]/application/[appInstance]/[prefix:[path1[/path2/]]]streamName
   - [] mark is an Optional.
   ```
