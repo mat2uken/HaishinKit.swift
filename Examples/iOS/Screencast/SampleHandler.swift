@@ -3,7 +3,7 @@ import Logboard
 import ReplayKit
 import VideoToolbox
 
-let logger = Logboard.with("com.haishinkit.Exsample.iOS.Screencast")
+let logger = LBLogger.with("com.haishinkit.Exsample.iOS.Screencast")
 
 @available(iOS 10.0, *)
 open class SampleHandler: RPBroadcastSampleHandler {
@@ -27,14 +27,14 @@ open class SampleHandler: RPBroadcastSampleHandler {
 
     override open func broadcastStarted(withSetupInfo setupInfo: [String: NSObject]?) {
         /*
-         let logger = Logboard.with(HaishinKitIdentifier)
+         let logger = LBLogger.with(HaishinKitIdentifier)
          let socket = SocketAppender()
          socket.connect("192.168.11.15", port: 22222)
          logger.level = .debug
          logger.appender = socket
          */
         logger.level = .debug
-        Logboard.with(HaishinKitIdentifier).level = .trace
+        LBLogger.with(HaishinKitIdentifier).level = .trace
         rtmpConnection.connect(Preference.defaultInstance.uri!, arguments: nil)
     }
 

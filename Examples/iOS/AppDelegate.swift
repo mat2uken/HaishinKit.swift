@@ -3,14 +3,14 @@ import HaishinKit
 import Logboard
 import UIKit
 
-let logger = Logboard.with("com.haishinkit.Exsample.iOS")
+let logger = LBLogger.with("com.haishinkit.Exsample.iOS")
 
 @UIApplicationMain
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        // Logboard.with(HaishinKitIdentifier).level = .trace
+        // LBLogger.with(HaishinKitIdentifier).level = .trace
         let session = AVAudioSession.sharedInstance()
         do {
             // https://stackoverflow.com/questions/51010390/avaudiosession-setcategory-swift-4-2-ios-12-play-sound-on-silent
