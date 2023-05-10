@@ -163,6 +163,15 @@ open class NetStream: NSObject {
             mixer.videoIO.codec.settings = newValue
         }
     }
+    
+    public var ignoreAudioSampleFragmented: Bool {
+        get {
+            mixer.audioIO.ignoreSampleFragmented
+        }
+        set {
+            mixer.audioIO.ignoreSampleFragmented = newValue
+        }
+    }
 
     #if os(iOS) || os(macOS)
     /// Attaches the primary camera object.

@@ -52,14 +52,15 @@ final class IOAudioUnit: NSObject, IOUnit {
     }
     #endif
 
+    var ignoreSampleFragmented: Bool = false
     func appendSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         guard CMSampleBufferDataIsReady(sampleBuffer), let sampleBuffer = sampleBuffer.muted(muted) else {
             return
         }
         inSourceFormat = sampleBuffer.formatDescription?.streamBasicDescription?.pointee
-//        if isFragmented(sampleBuffer), let sampleBuffer = makeSampleBuffer(sampleBuffer) {
-//            appendSampleBuffer(sampleBuffer)
-//        }
+        if !ignoreSampleFragmented && isFragmented(sampleBuffer), let sampleBuffer = makeSampleBuffer(sampleBuffer) {
+            appendSampleBuffer(sampleBuffer)
+        }
         mixer?.recorder.appendSampleBuffer(sampleBuffer, mediaType: .audio)
         codec.appendSampleBuffer(sampleBuffer)
         presentationTimeStamp = CMTimeAdd(presentationTimeStamp, CMTime(value: CMTimeValue(sampleBuffer.numSamples), timescale: presentationTimeStamp.timescale))
