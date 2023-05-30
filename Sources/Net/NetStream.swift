@@ -280,7 +280,11 @@ open class NetStream: NSObject {
     }
 
     /// Starts recording.
-    public func startRecording(_ settings: [AVMediaType: [String: Any]] = IORecorder.defaultOutputSettings) {
+    public func startRecording(_ settings: [AVMediaType: [String: Any]] = IORecorder.defaultOutputSettings,
+                               _ recordPathPrefix: String? = nil) {
+        if let prefix = recordPathPrefix {
+            mixer.recorder.recordUrlPrefix = prefix
+        }
         mixer.recorder.outputSettings = settings
         mixer.recorder.startRunning()
     }

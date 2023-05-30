@@ -12,6 +12,8 @@ public protocol IORecorderDelegate: AnyObject {
 /// The IORecorder class represents video and audio recorder.
 public class IORecorder {
     private static let interpolationThreshold = 1024 * 4
+    
+    public var recordUrlPrefix: String? = nil
 
     /// The IORecorder error domain codes.
     public enum Error: Swift.Error {
@@ -237,7 +239,11 @@ extension IORecorder: Running {
             do {
                 self.videoPresentationTime = .zero
                 self.audioPresentationTime = .zero
-                let url = self.moviesDirectory.appendingPathComponent(("aerocaster_recorded_" + UUID().uuidString)).appendingPathExtension("mp4")
+                var recordPath = UUID().uuidString
+                if let recordUrlPrefix = self.recordUrlPrefix {
+                    recordPath = recordUrlPrefix + UUID().uuidString
+                }
+                let url = self.moviesDirectory.appendingPathComponent(recordPath).appendingPathExtension("mp4")
                 self.writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
                 self.isRunning.mutate { $0 = true }
             } catch {
