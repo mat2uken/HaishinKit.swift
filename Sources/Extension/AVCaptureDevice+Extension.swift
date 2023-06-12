@@ -13,8 +13,6 @@ $0.formatDescription.dimensions.height
             } ?? formats.last {
                 $0.isMultiCamSupported && $0.isFrameRateSupported(frameRate) && $0.formatDescription.dimensions.width < width && $0.formatDescription.dimensions.height < height
             }
-        #endif
-
         } else {
             return formats.first {
                 $0.isFrameRateSupported(frameRate) && width <= $0.formatDescription.dimensions.width && height <= $0.formatDescription.dimensions.height
