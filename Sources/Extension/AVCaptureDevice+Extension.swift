@@ -5,7 +5,7 @@ import Foundation
 extension AVCaptureDevice {
     func videoFormat(width: Int32, height: Int32, frameRate: Float64, isMultiCamSupported: Bool) -> AVCaptureDevice.Format? {
 
-        #if available(iOS 13.0, *) {
+        if #available(iOS 13.0, *) {
             if isMultiCamSupported {
                 return formats.first {
                     $0.isMultiCamSupported && $0.isFrameRateSupported(frameRate) && width <= $0.formatDescription.dimensions.width && height <= 
