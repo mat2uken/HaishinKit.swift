@@ -3,7 +3,7 @@ import Foundation
 /// Atomic<T> class
 /// - seealso: https://www.objc.io/blog/2018/12/18/atomic-variables/
 public struct Atomic<A> {
-    private let queue = DispatchQueue(label: "com.haishinkit.HaishinKit.Atomic", attributes: .concurrent)
+    private let queue = DispatchQueue(label: "com.haishinkit.HaishinKit.Atomic")
     private var _value: A
 
     /// Getter for the value.
