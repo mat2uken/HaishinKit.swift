@@ -44,6 +44,10 @@ struct VTSessionOptionKey {
     static let encoderID = VTSessionOptionKey(CFString: kVTVideoEncoderSpecification_EncoderID)
     @available(iOS 16.0, tvOS 16.0, macOS 13.0, *)
     static let constantBitRate = VTSessionOptionKey(CFString: kVTCompressionPropertyKey_ConstantBitRate)
+    @available(iOS 16.0, tvOS 16.0, macOS 13.0, *)
+    static let maxAllowedFrameQP = VTSessionOptionKey(CFString: kVTCompressionPropertyKey_MaxAllowedFrameQP)
+    @available(iOS 16.0, tvOS 16.0, macOS 13.0, *)
+    static let minAllowedFrameQP = VTSessionOptionKey(CFString: kVTCompressionPropertyKey_MinAllowedFrameQP)
 
     let CFString: CFString
 }
