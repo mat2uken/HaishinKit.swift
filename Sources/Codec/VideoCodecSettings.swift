@@ -138,22 +138,24 @@ public struct VideoCodecSettings: Codable {
 
     func apply(_ codec: VideoCodec, rhs: VideoCodecSettings) {
         if bitRate != rhs.bitRate {
-            let option = VTSessionOption(key: bitRateMode.key, value: NSNumber(value: UInt32(Double(bitRate) * 0.8)))
+            let option = VTSessionOption(key: bitRateMode.key, value: NSNumber(value: bitRate))
             if let status = codec.session?.setOption(option), status != noErr {
                 codec.delegate?.videoCodec(codec, errorOccurred: .failedToSetOption(status: status, option: option))
             }
-            _ = codec.session?.setOption(.init(key: .dataRateLimits, value: [(Double(bitRate) * 0.8) as CFNumber, Double(1.0) as CFNumber] as CFArray))
+            _ = codec.session?.setOption(.init(key: .dataRateLimits, value: [(Double(bitRate) * 1.2) as CFNumber, Double(1.0) as CFNumber] as CFArray))
         }
     }
 
     func options(_ codec: VideoCodec) -> Set<VTSessionOption> {
         let isBaseline = profileLevel.contains("Baseline")
+
         var options = Set<VTSessionOption>([
             .init(key: .realTime, value: kCFBooleanTrue),
             .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
             .init(key: .profileLevel, value: profileLevel as NSObject),
-            .init(key: bitRateMode.key, value: NSNumber(value: UInt32(Double(bitRate) * 0.8))),
-            .init(key: .dataRateLimits, value: [(Double(bitRate) * 0.8) as CFNumber, Double(1.0) as CFNumber] as CFArray),
+            .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
+//            .init(key: bitRateMode.key, value: NSNumber(value: UInt32(Double(bitRate) * 0.8))),
+            .init(key: .dataRateLimits, value: [(Double(bitRate) * 1.2) as CFNumber, Double(1.0) as CFNumber] as CFArray),
             // It seemes that VT supports the range 0 to 30.
             .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
             .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
@@ -162,13 +164,15 @@ public struct VideoCodecSettings: Codable {
                 "ScalingMode": scalingMode.rawValue
             ] as NSObject),
         ])
+
         if #available(iOS 16.0, tvOS 16.0, macOS 13.0, *) {
             options = Set<VTSessionOption>([
                 .init(key: .realTime, value: kCFBooleanTrue),
                 .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
                 .init(key: .profileLevel, value: profileLevel as NSObject),
-                .init(key: bitRateMode.key, value: NSNumber(value: UInt32(Double(bitRate) * 0.8))),
-                .init(key: .dataRateLimits, value: [(Double(bitRate) * 0.8) as CFNumber, Double(1.0) as CFNumber] as CFArray),
+                .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
+//                .init(key: bitRateMode.key, value: NSNumber(value: UInt32(Double(bitRate) * 0.9))),
+//                .init(key: .dataRateLimits, value: [(Double(bitRate) * 0.9) as CFNumber, Double(1.0) as CFNumber] as CFArray),
                 // It seemes that VT supports the range 0 to 30.
                 .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
                 .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
@@ -176,8 +180,8 @@ public struct VideoCodecSettings: Codable {
                 .init(key: .pixelTransferProperties, value: [
                     "ScalingMode": scalingMode.rawValue
                 ] as NSObject),
-                .init(key: .maxAllowedFrameQP, value: NSNumber(value: 48)),
-                .init(key: .minAllowedFrameQP, value: NSNumber(value: 46))
+//                .init(key: .maxAllowedFrameQP, value: NSNumber(value: 44)),
+//                .init(key: .minAllowedFrameQP, value: NSNumber(value: 22))
             ])
         }
         #if os(macOS)
