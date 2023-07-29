@@ -74,16 +74,16 @@ final class IOAudioUnit: NSObject, IOUnit {
         inSourceFormat = sampleBuffer.formatDescription?.streamBasicDescription?.pointee
 
         if !ignoreSampleFragmented {
-        // Synchronization between video and audio, need to synchronize the gaps.
-        let numGapSamples = numGapSamples(sampleBuffer)
-        let numSampleBuffers = Int(numGapSamples / sampleBuffer.numSamples)
+            // Synchronization between video and audio, need to synchronize the gaps.
+            let numGapSamples = numGapSamples(sampleBuffer)
+            let numSampleBuffers = Int(numGapSamples / sampleBuffer.numSamples)
             if Self.sampleBuffersThreshold <= numSampleBuffers {
                 var gapPresentationTimeStamp = presentationTimeStamp
                 for i in 0 ... numSampleBuffers {
                     let numSamples = numSampleBuffers == i ? numGapSamples % sampleBuffer.numSamples : sampleBuffer.numSamples
                     guard let gapSampleBuffer = CMAudioSampleBufferUtil.makeSampleBuffer(sampleBuffer, numSamples: numSamples, presentationTimeStamp: gapPresentationTimeStamp) else {
                         continue
-                   <<<< }
+                    }
                     mixer?.recorder.appendSampleBuffer(gapSampleBuffer)
                     codec.appendSampleBuffer(gapSampleBuffer)
                     gapPresentationTimeStamp = CMTimeAdd(gapPresentationTimeStamp, gapSampleBuffer.duration)
