@@ -1,3 +1,4 @@
+import Accelerate
 import AVFoundation
 import Foundation
 
@@ -30,7 +31,7 @@ final class AudioCodecRingBuffer {
     init?(_ inSourceFormat: inout AudioStreamBasicDescription, numSamples: UInt32 = AudioCodecRingBuffer.numSamples) {
         guard
             inSourceFormat.mFormatID == kAudioFormatLinearPCM,
-            let format = AVAudioFormat(streamDescription: &inSourceFormat),
+            let format = AudioCodec.makeAudioFormat(&inSourceFormat),
             let workingBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: numSamples) else {
             return nil
         }
@@ -67,17 +68,29 @@ final class AudioCodecRingBuffer {
                 frameCount: Int32(sampleBuffer.numSamples),
                 into: workingBuffer.mutableAudioBufferList
             )
+            if kLinearPCMFormatFlagIsBigEndian == ((sampleBuffer.formatDescription?.audioStreamBasicDescription?.mFormatFlags ?? 0) & kLinearPCMFormatFlagIsBigEndian) {
+                if format.isInterleaved {
+                    switch format.commonFormat {
+                    case .pcmFormatInt16:
+                        let length = sampleBuffer.dataBuffer?.dataLength ?? 0
+                        var image = vImage_Buffer(data: workingBuffer.mutableAudioBufferList[0].mBuffers.mData, height: 1, width: vImagePixelCount(length / 2), rowBytes: length)
+                        vImageByteSwap_Planar16U(&image, &image, vImage_Flags(kvImageNoFlags))
+                    default:
+                        break
+                    }
+                }
+            }
         }
         let numSamples = min(self.numSamples - index, Int(sampleBuffer.numSamples) - offset)
         if format.isInterleaved {
             let channelCount = Int(format.channelCount)
             switch format.commonFormat {
             case .pcmFormatInt16:
-                memcpy(current.int16ChannelData?[0].advanced(by: index), workingBuffer.int16ChannelData?[0].advanced(by: offset), numSamples * 2 * channelCount)
+                memcpy(current.int16ChannelData?[0].advanced(by: index * channelCount), workingBuffer.int16ChannelData?[0].advanced(by: offset * channelCount), numSamples * 2 * channelCount)
             case .pcmFormatInt32:
-                memcpy(current.int32ChannelData?[0].advanced(by: index), workingBuffer.int32ChannelData?[0].advanced(by: offset), numSamples * 4 * channelCount)
+                memcpy(current.int32ChannelData?[0].advanced(by: index * channelCount), workingBuffer.int32ChannelData?[0].advanced(by: offset * channelCount), numSamples * 4 * channelCount)
             case .pcmFormatFloat32:
-                memcpy(current.floatChannelData?[0].advanced(by: index), workingBuffer.floatChannelData?[0].advanced(by: offset), numSamples * 4 * channelCount)
+                memcpy(current.floatChannelData?[0].advanced(by: index * channelCount), workingBuffer.floatChannelData?[0].advanced(by: offset * channelCount), numSamples * 4 * channelCount)
             default:
                 break
             }

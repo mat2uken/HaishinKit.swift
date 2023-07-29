@@ -290,7 +290,7 @@ open class RTMPStream: NetStream {
 
     /// Plays a live stream from RTMPServer.
     open func play(_ arguments: Any?...) {
-        // swiftlint:disable closure_body_length
+        // swiftlint:disable:next closure_body_length
         lockQueue.async {
             guard let name: String = arguments.first as? String else {
                 switch self.readyState {
@@ -342,7 +342,7 @@ open class RTMPStream: NetStream {
 
     /// Sends streaming audio, vidoe and data message from client.
     open func publish(_ name: String?, type: RTMPStream.HowToPublish = .live) {
-        // swiftlint:disable closure_body_length
+        // swiftlint:disable:next closure_body_length
         lockQueue.async {
             guard let name: String = name else {
                 switch self.readyState {
@@ -418,8 +418,11 @@ open class RTMPStream: NetStream {
             metadata["width"] = mixer.videoIO.codec.settings.videoSize.width
             metadata["height"] = mixer.videoIO.codec.settings.videoSize.height
             metadata["framerate"] = mixer.videoIO.frameRate
-            if mixer.videoIO.codec.settings.format == .h264 {
+            switch mixer.videoIO.codec.settings.format {
+            case .h264:
                 metadata["videocodecid"] = FLVVideoCodec.avc.rawValue
+            case .hevc:
+                metadata["videocodecid"] = FLVVideoFourCC.hevc.rawValue
             }
             metadata["videodatarate"] = mixer.videoIO.codec.settings.bitRate / 1000
         }
