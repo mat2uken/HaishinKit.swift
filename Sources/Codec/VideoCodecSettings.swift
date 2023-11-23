@@ -100,6 +100,11 @@ public struct VideoCodecSettings: Codable {
 
     var format: Format = .h264
 
+    var dataLimiteLate: Float
+    var maxDelayFrameCount: Int
+    var maxQP: Int
+    var minQP: Int
+    
     /// Creates a new VideoCodecSettings instance.
     public init(
         videoSize: VideoSize = .init(width: 854, height: 480),
@@ -109,7 +114,11 @@ public struct VideoCodecSettings: Codable {
         scalingMode: ScalingMode = .trim,
         bitRateMode: BitRateMode = .average,
         allowFrameReordering: Bool? = nil, // swiftlint:disable:this discouraged_optional_boolean
-        isHardwareEncoderEnabled: Bool = true
+        isHardwareEncoderEnabled: Bool = true,
+        dataLimiteLate: Float = 1.2,
+        maxDelayFrameCount: Int = 10,
+        maxQP: Int = 38,
+        minQP: Int = 18
     ) {
         self.videoSize = videoSize
         self.profileLevel = profileLevel
@@ -122,6 +131,10 @@ public struct VideoCodecSettings: Codable {
         if profileLevel.contains("HEVC") {
             self.format = .hevc
         }
+        self.dataLimiteLate = dataLimiteLate
+        self.maxDelayFrameCount = maxDelayFrameCount
+        self.maxQP = maxQP
+        self.minQP = minQP
     }
 
     func invalidateSession(_ rhs: VideoCodecSettings) -> Bool {
@@ -141,7 +154,7 @@ public struct VideoCodecSettings: Codable {
             if let status = codec.session?.setOption(option), status != noErr {
                 codec.delegate?.videoCodec(codec, errorOccurred: .failedToSetOption(status: status, option: option))
             }
-            _ = codec.session?.setOption(.init(key: .dataRateLimits, value: [(Double(bitRate) * 1.2) as CFNumber, Double(1.0) as CFNumber] as CFArray))
+//            _ = codec.session?.setOption(.init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray))
         }
     }
 
@@ -153,11 +166,11 @@ public struct VideoCodecSettings: Codable {
             .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
             .init(key: .profileLevel, value: profileLevel as NSObject),
             .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
-//            .init(key: bitRateMode.key, value: NSNumber(value: UInt32(Double(bitRate) * 0.8))),
-            .init(key: .dataRateLimits, value: [(Double(bitRate) * 1.2) as CFNumber, Double(1.0) as CFNumber] as CFArray),
+            .init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray),
             // It seemes that VT supports the range 0 to 30.
             .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
             .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
+            .init(key: .maxFrameDelayCount, value: NSNumber(value: Int(maxDelayFrameCount / 2))),
             .init(key: .allowFrameReordering, value: (allowFrameReordering ?? !isBaseline) as NSObject),
             .init(key: .pixelTransferProperties, value: [
                 "ScalingMode": scalingMode.rawValue
@@ -170,8 +183,7 @@ public struct VideoCodecSettings: Codable {
                 .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
                 .init(key: .profileLevel, value: profileLevel as NSObject),
                 .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
-//                .init(key: bitRateMode.key, value: NSNumber(value: UInt32(Double(bitRate) * 0.9))),
-                .init(key: .dataRateLimits, value: [(Double(bitRate) * 0.9) as CFNumber, Double(1.0) as CFNumber] as CFArray),
+                .init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray),
                 // It seemes that VT supports the range 0 to 30.
                 .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
                 .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
@@ -179,8 +191,9 @@ public struct VideoCodecSettings: Codable {
                 .init(key: .pixelTransferProperties, value: [
                     "ScalingMode": scalingMode.rawValue
                 ] as NSObject),
-//                .init(key: .maxAllowedFrameQP, value: NSNumber(value: 44)),
-//                .init(key: .minAllowedFrameQP, value: NSNumber(value: 22))
+                .init(key: .maxFrameDelayCount, value: NSNumber(value: Int(maxDelayFrameCount))),
+                .init(key: .maxAllowedFrameQP, value: NSNumber(value: maxQP)),
+                .init(key: .minAllowedFrameQP, value: NSNumber(value: minQP))
             ])
         }
         #if os(macOS)
