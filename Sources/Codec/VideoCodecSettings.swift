@@ -101,7 +101,7 @@ public struct VideoCodecSettings: Codable {
     var format: Format = .h264
 
     var dataLimiteLate: Float
-    var maxDelayFrameCount: Int
+    var maxDelayFrameCount: Int?
     var maxQP: Int?
     var minQP: Int?
     
@@ -116,7 +116,7 @@ public struct VideoCodecSettings: Codable {
         allowFrameReordering: Bool? = nil, // swiftlint:disable:this discouraged_optional_boolean
         isHardwareEncoderEnabled: Bool = true,
         dataLimiteLate: Float = 1.2,
-        maxDelayFrameCount: Int = 10,
+        maxDelayFrameCount: Int? = nil,
         maxQP: Int? = nil,
         minQP: Int? = nil
     ) {
@@ -170,7 +170,6 @@ public struct VideoCodecSettings: Codable {
             // It seemes that VT supports the range 0 to 30.
             .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
             .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
-            .init(key: .maxFrameDelayCount, value: NSNumber(value: Int(maxDelayFrameCount / 2))),
             .init(key: .allowFrameReordering, value: (allowFrameReordering ?? !isBaseline) as NSObject),
             .init(key: .pixelTransferProperties, value: [
                 "ScalingMode": scalingMode.rawValue
@@ -178,7 +177,7 @@ public struct VideoCodecSettings: Codable {
         ])
 
         if #available(iOS 16.0, tvOS 16.0, macOS 13.0, *) {
-            if let maxQP = self.maxQP, let minQP = self.minQP {
+            if let maxQP = self.maxQP, let minQP = self.minQP, let maxDelayFrameCount = self.maxDelayFrameCount {
                 options = Set<VTSessionOption>([
                     .init(key: .realTime, value: kCFBooleanFalse),
                     .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
@@ -210,7 +209,6 @@ public struct VideoCodecSettings: Codable {
                     .init(key: .pixelTransferProperties, value: [
                         "ScalingMode": scalingMode.rawValue
                     ] as NSObject),
-                    .init(key: .maxFrameDelayCount, value: NSNumber(value: Int(maxDelayFrameCount))),
                 ])
             }
         }
