@@ -100,6 +100,7 @@ public struct VideoCodecSettings: Codable {
 
     var format: Format = .h264
 
+    var realtime: Bool = false
     var dataLimiteLate: Float
     var maxDelayFrameCount: Int?
     var maxQP: Int?
@@ -115,6 +116,7 @@ public struct VideoCodecSettings: Codable {
         bitRateMode: BitRateMode = .average,
         allowFrameReordering: Bool? = nil, // swiftlint:disable:this discouraged_optional_boolean
         isHardwareEncoderEnabled: Bool = true,
+        realtime: Bool = false,
         dataLimiteLate: Float = 1.2,
         maxDelayFrameCount: Int? = nil,
         maxQP: Int? = nil,
@@ -131,6 +133,7 @@ public struct VideoCodecSettings: Codable {
         if profileLevel.contains("HEVC") {
             self.format = .hevc
         }
+        self.realtime = realtime
         self.dataLimiteLate = dataLimiteLate
         self.maxDelayFrameCount = maxDelayFrameCount
         self.maxQP = maxQP
@@ -162,7 +165,7 @@ public struct VideoCodecSettings: Codable {
         let isBaseline = profileLevel.contains("Baseline")
 
         var options = Set<VTSessionOption>([
-            .init(key: .realTime, value: kCFBooleanFalse),
+            .init(key: .realTime, value: self.realtime ? kCFBooleanTrue : kCFBooleanFalse),
             .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
             .init(key: .profileLevel, value: profileLevel as NSObject),
             .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
@@ -179,7 +182,7 @@ public struct VideoCodecSettings: Codable {
         if #available(iOS 16.0, tvOS 16.0, macOS 13.0, *) {
             if let maxQP = self.maxQP, let minQP = self.minQP, let maxDelayFrameCount = self.maxDelayFrameCount {
                 options = Set<VTSessionOption>([
-                    .init(key: .realTime, value: kCFBooleanFalse),
+                    .init(key: .realTime, value: self.realtime ? kCFBooleanTrue : kCFBooleanFalse),
                     .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
                     .init(key: .profileLevel, value: profileLevel as NSObject),
                     .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
@@ -197,7 +200,7 @@ public struct VideoCodecSettings: Codable {
                 ])
             } else {
                 options = Set<VTSessionOption>([
-                    .init(key: .realTime, value: kCFBooleanFalse),
+                    .init(key: .realTime, value: self.realtime ? kCFBooleanTrue : kCFBooleanFalse),
                     .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
                     .init(key: .profileLevel, value: profileLevel as NSObject),
                     .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
