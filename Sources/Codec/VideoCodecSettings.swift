@@ -102,8 +102,8 @@ public struct VideoCodecSettings: Codable {
 
     var dataLimiteLate: Float
     var maxDelayFrameCount: Int
-    var maxQP: Int
-    var minQP: Int
+    var maxQP: Int?
+    var minQP: Int?
     
     /// Creates a new VideoCodecSettings instance.
     public init(
@@ -117,8 +117,8 @@ public struct VideoCodecSettings: Codable {
         isHardwareEncoderEnabled: Bool = true,
         dataLimiteLate: Float = 1.2,
         maxDelayFrameCount: Int = 10,
-        maxQP: Int = 38,
-        minQP: Int = 18
+        maxQP: Int? = nil,
+        minQP: Int? = nil
     ) {
         self.videoSize = videoSize
         self.profileLevel = profileLevel
@@ -178,23 +178,41 @@ public struct VideoCodecSettings: Codable {
         ])
 
         if #available(iOS 16.0, tvOS 16.0, macOS 13.0, *) {
-            options = Set<VTSessionOption>([
-                .init(key: .realTime, value: kCFBooleanFalse),
-                .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
-                .init(key: .profileLevel, value: profileLevel as NSObject),
-                .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
-                .init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray),
-                // It seemes that VT supports the range 0 to 30.
-                .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
-                .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
-                .init(key: .allowFrameReordering, value: (allowFrameReordering ?? !isBaseline) as NSObject),
-                .init(key: .pixelTransferProperties, value: [
-                    "ScalingMode": scalingMode.rawValue
-                ] as NSObject),
-                .init(key: .maxFrameDelayCount, value: NSNumber(value: Int(maxDelayFrameCount))),
-                .init(key: .maxAllowedFrameQP, value: NSNumber(value: maxQP)),
-                .init(key: .minAllowedFrameQP, value: NSNumber(value: minQP))
-            ])
+            if let maxQP = self.maxQP, let minQP = self.minQP {
+                options = Set<VTSessionOption>([
+                    .init(key: .realTime, value: kCFBooleanFalse),
+                    .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
+                    .init(key: .profileLevel, value: profileLevel as NSObject),
+                    .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
+                    .init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray),
+                    // It seemes that VT supports the range 0 to 30.
+                    .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
+                    .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
+                    .init(key: .allowFrameReordering, value: (allowFrameReordering ?? !isBaseline) as NSObject),
+                    .init(key: .pixelTransferProperties, value: [
+                        "ScalingMode": scalingMode.rawValue
+                    ] as NSObject),
+                    .init(key: .maxFrameDelayCount, value: NSNumber(value: Int(maxDelayFrameCount))),
+                    .init(key: .maxAllowedFrameQP, value: NSNumber(value: maxQP)),
+                    .init(key: .minAllowedFrameQP, value: NSNumber(value: minQP))
+                ])
+            } else {
+                options = Set<VTSessionOption>([
+                    .init(key: .realTime, value: kCFBooleanFalse),
+                    .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
+                    .init(key: .profileLevel, value: profileLevel as NSObject),
+                    .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
+                    .init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray),
+                    // It seemes that VT supports the range 0 to 30.
+                    .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
+                    .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
+                    .init(key: .allowFrameReordering, value: (allowFrameReordering ?? !isBaseline) as NSObject),
+                    .init(key: .pixelTransferProperties, value: [
+                        "ScalingMode": scalingMode.rawValue
+                    ] as NSObject),
+                    .init(key: .maxFrameDelayCount, value: NSNumber(value: Int(maxDelayFrameCount))),
+                ])
+            }
         }
         #if os(macOS)
         if isHardwareEncoderEnabled {
