@@ -101,7 +101,8 @@ public struct VideoCodecSettings: Codable {
     var format: Format = .h264
 
     var realtime: Bool = false
-    var dataLimiteLate: Float
+    var allowTemporalCompression: Bool? = nil
+    var dataLimiteLate: Float?
     var maxDelayFrameCount: Int?
     var maxQP: Int?
     var minQP: Int?
@@ -115,9 +116,10 @@ public struct VideoCodecSettings: Codable {
         scalingMode: ScalingMode = .trim,
         bitRateMode: BitRateMode = .average,
         allowFrameReordering: Bool? = nil, // swiftlint:disable:this discouraged_optional_boolean
+        allowTemporalCompression: Bool? = nil, // swiftlint:disable:this discouraged_optional_boolean
         isHardwareEncoderEnabled: Bool = true,
         realtime: Bool = false,
-        dataLimiteLate: Float = 1.2,
+        dataLimiteLate: Float? = nil,
         maxDelayFrameCount: Int? = nil,
         maxQP: Int? = nil,
         minQP: Int? = nil
@@ -134,6 +136,7 @@ public struct VideoCodecSettings: Codable {
             self.format = .hevc
         }
         self.realtime = realtime
+        self.allowTemporalCompression = allowTemporalCompression
         self.dataLimiteLate = dataLimiteLate
         self.maxDelayFrameCount = maxDelayFrameCount
         self.maxQP = maxQP
@@ -166,10 +169,8 @@ public struct VideoCodecSettings: Codable {
 
         var options = Set<VTSessionOption>([
             .init(key: .realTime, value: self.realtime ? kCFBooleanTrue : kCFBooleanFalse),
-            .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
             .init(key: .profileLevel, value: profileLevel as NSObject),
             .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
-            .init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray),
             // It seemes that VT supports the range 0 to 30.
             .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
             .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
@@ -179,42 +180,27 @@ public struct VideoCodecSettings: Codable {
             ] as NSObject),
         ])
 
-        if #available(iOS 16.0, tvOS 16.0, macOS 13.0, *) {
-            if let maxQP = self.maxQP, let minQP = self.minQP, let maxDelayFrameCount = self.maxDelayFrameCount {
-                options = Set<VTSessionOption>([
-                    .init(key: .realTime, value: self.realtime ? kCFBooleanTrue : kCFBooleanFalse),
-                    .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
-                    .init(key: .profileLevel, value: profileLevel as NSObject),
-                    .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
-                    .init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray),
-                    // It seemes that VT supports the range 0 to 30.
-                    .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
-                    .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
-                    .init(key: .allowFrameReordering, value: (allowFrameReordering ?? !isBaseline) as NSObject),
-                    .init(key: .pixelTransferProperties, value: [
-                        "ScalingMode": scalingMode.rawValue
-                    ] as NSObject),
-                    .init(key: .maxFrameDelayCount, value: NSNumber(value: Int(maxDelayFrameCount))),
-                    .init(key: .maxAllowedFrameQP, value: NSNumber(value: maxQP)),
-                    .init(key: .minAllowedFrameQP, value: NSNumber(value: minQP))
-                ])
-            } else {
-                options = Set<VTSessionOption>([
-                    .init(key: .realTime, value: self.realtime ? kCFBooleanTrue : kCFBooleanFalse),
-                    .init(key: .allowTemporalCompression, value: kCFBooleanTrue),
-                    .init(key: .profileLevel, value: profileLevel as NSObject),
-                    .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
-                    .init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray),
-                    // It seemes that VT supports the range 0 to 30.
-                    .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
-                    .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
-                    .init(key: .allowFrameReordering, value: (allowFrameReordering ?? !isBaseline) as NSObject),
-                    .init(key: .pixelTransferProperties, value: [
-                        "ScalingMode": scalingMode.rawValue
-                    ] as NSObject),
-                ])
+        if let allowTemporalCompression = self.allowTemporalCompression {
+            options.insert(.init(key: .allowTemporalCompression, value: allowTemporalCompression ? kCFBooleanTrue : kCFBooleanFalse))
+        }
+        
+        if let dataLimiteLate = self.dataLimiteLate {
+            if bitRateMode == .average {
+                options.insert(.init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray))
             }
         }
+
+        if let maxDelayFrameCount = self.maxDelayFrameCount {
+            options.insert(.init(key: .maxFrameDelayCount, value: NSNumber(value: Int(maxDelayFrameCount))))
+        }
+        
+        if #available(iOS 16.0, tvOS 16.0, macOS 13.0, *) {
+            if let maxQP = self.maxQP, let minQP = self.minQP {
+                options.insert(.init(key: .maxAllowedFrameQP, value: NSNumber(value: maxQP)))
+                options.insert(.init(key: .minAllowedFrameQP, value: NSNumber(value: minQP)))
+            }
+        }
+
         #if os(macOS)
         if isHardwareEncoderEnabled {
             options.insert(.init(key: .encoderID, value: format.encoderID))
