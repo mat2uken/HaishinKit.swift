@@ -160,7 +160,13 @@ public struct VideoCodecSettings: Codable {
             if let status = codec.session?.setOption(option), status != noErr {
                 codec.delegate?.videoCodec(codec, errorOccurred: .failedToSetOption(status: status, option: option))
             }
-//            _ = codec.session?.setOption(.init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray))
+        }
+        if let dataLimiteLate = self.dataLimiteLate {
+            _ = codec.session?.setOption(.init(key: .dataRateLimits,
+                                               value: [
+                                                (Double(bitRate) / 8.0 * Double(dataLimiteLate) * 3.0) as CFNumber,
+                                                Double(3.0) as CFNumber
+                                               ] as CFArray))
         }
     }
 
@@ -173,6 +179,7 @@ public struct VideoCodecSettings: Codable {
             .init(key: bitRateMode.key, value: NSNumber(value: bitRate)),
             // It seemes that VT supports the range 0 to 30.
             .init(key: .expectedFrameRate, value: NSNumber(value: (codec.expectedFrameRate <= 30) ? codec.expectedFrameRate : 0)),
+            .init(key: .maxKeyFrameInterval, value: NSNumber(value: codec.expectedFrameRate * 2)),
             .init(key: .maxKeyFrameIntervalDuration, value: NSNumber(value: maxKeyFrameIntervalDuration)),
             .init(key: .allowFrameReordering, value: (allowFrameReordering ?? !isBaseline) as NSObject),
             .init(key: .pixelTransferProperties, value: [
