@@ -186,7 +186,12 @@ public struct VideoCodecSettings: Codable {
         
         if let dataLimiteLate = self.dataLimiteLate {
             if bitRateMode == .average {
-                options.insert(.init(key: .dataRateLimits, value: [(Double(bitRate) * Double(dataLimiteLate)) as CFNumber, Double(1.0) as CFNumber] as CFArray))
+                // 3秒間隔での制限値を設定する
+                options.insert(.init(key: .dataRateLimits,
+                                     value: [
+                                        (Double(bitRate) / 8.0 * Double(dataLimiteLate) * 3.0) as CFNumber,
+                                        Double(3.0) as CFNumber
+                                     ] as CFArray))
             }
         }
 
