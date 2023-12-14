@@ -102,7 +102,7 @@ public struct VideoCodecSettings: Codable {
 
     var realtime: Bool = false
     var allowTemporalCompression: Bool? = nil
-    var dataLimiteLate: Float?
+    var dataRateLimit: Float?
     var maxDelayFrameCount: Int?
     var maxQP: Int?
     var minQP: Int?
@@ -119,7 +119,7 @@ public struct VideoCodecSettings: Codable {
         allowTemporalCompression: Bool? = nil, // swiftlint:disable:this discouraged_optional_boolean
         isHardwareEncoderEnabled: Bool = true,
         realtime: Bool = false,
-        dataLimiteLate: Float? = nil,
+        dataRateLimit: Float? = nil,
         maxDelayFrameCount: Int? = nil,
         maxQP: Int? = nil,
         minQP: Int? = nil
@@ -137,7 +137,7 @@ public struct VideoCodecSettings: Codable {
         }
         self.realtime = realtime
         self.allowTemporalCompression = allowTemporalCompression
-        self.dataLimiteLate = dataLimiteLate
+        self.dataRateLimit = dataRateLimit
         self.maxDelayFrameCount = maxDelayFrameCount
         self.maxQP = maxQP
         self.minQP = minQP
@@ -161,10 +161,10 @@ public struct VideoCodecSettings: Codable {
                 codec.delegate?.videoCodec(codec, errorOccurred: .failedToSetOption(status: status, option: option))
             }
         }
-        if let dataLimiteLate = self.dataLimiteLate {
+        if let dataRateLimit = self.dataRateLimit {
             _ = codec.session?.setOption(.init(key: .dataRateLimits,
                                                value: [
-                                                (Double(bitRate) / 8.0 * Double(dataLimiteLate) * 3.0) as CFNumber,
+                                                (Double(bitRate) / 8.0 * Double(dataRateLimit) * 3.0) as CFNumber,
                                                 Double(3.0) as CFNumber
                                                ] as CFArray))
         }
@@ -191,7 +191,7 @@ public struct VideoCodecSettings: Codable {
             options.insert(.init(key: .allowTemporalCompression, value: allowTemporalCompression ? kCFBooleanTrue : kCFBooleanFalse))
         }
         
-        if let dataLimiteLate = self.dataLimiteLate {
+        if let dataLimiteLate = self.dataRateLimit {
             if bitRateMode == .average {
                 // 3秒間隔での制限値を設定する
                 options.insert(.init(key: .dataRateLimits,

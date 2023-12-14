@@ -11,7 +11,7 @@ final class IOVideoUnit: NSObject, IOUnit {
         kCVPixelBufferMetalCompatibilityKey: kCFBooleanTrue
     ]
 
-    let lockQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.VideoIOComponent.lock")
+    let lockQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.VideoIOComponent.lock", qos: .userInitiated)
 
     var context: CIContext = .init() {
         didSet {
@@ -222,6 +222,18 @@ final class IOVideoUnit: NSObject, IOUnit {
     func unregisterEffect(_ effect: VideoEffect) -> Bool {
         effect.ciContext = nil
         return effects.remove(effect) != nil
+    }
+
+    func appendCVPixelBufferDirect(imageBuffer: CVPixelBuffer, presentationTimeStamp: CMTime, duration: CMTime) {
+        codec.appendImageBuffer(
+            imageBuffer,
+            presentationTimeStamp: presentationTimeStamp,
+            duration: duration
+        )
+        mixer?.recorder.appendPixelBuffer(
+            imageBuffer,
+            withPresentationTime: presentationTimeStamp
+        )
     }
 
     func appendSampleBuffer(_ sampleBuffer: CMSampleBuffer) {

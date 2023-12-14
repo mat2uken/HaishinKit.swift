@@ -275,6 +275,15 @@ open class NetStream: NSObject {
         }
     }
 
+    open func appendImageBufferDirect(imageBuffer: CVPixelBuffer, presentationTimeStamp: CMTime, duration: CMTime) {
+            mixer.videoIO.lockQueue.async {
+                self.mixer.videoIO.appendCVPixelBufferDirect(
+                    imageBuffer: imageBuffer,
+                    presentationTimeStamp: presentationTimeStamp,
+                    duration: duration)
+            }
+    }
+
     /// Register a video effect.
     public func registerVideoEffect(_ effect: VideoEffect) -> Bool {
         mixer.videoIO.lockQueue.sync {
