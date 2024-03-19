@@ -278,6 +278,7 @@ open class RTMPStream: NetStream {
         addEventListener(.rtmpStatus, selector: #selector(on(status:)), observer: self)
         rtmpConnection?.addEventListener(.rtmpStatus, selector: #selector(on(status:)), observer: self)
         if rtmpConnection?.connected == true {
+            releaseStream()
             rtmpConnection?.createStream(self)
         }
     }
@@ -534,6 +535,7 @@ open class RTMPStream: NetStream {
         switch code {
         case RTMPConnection.Code.connectSuccess.rawValue:
             readyState = .initialized
+            releaseStream()
             rtmpConnection.createStream(self)
         case RTMPStream.Code.playReset.rawValue:
             readyState = .play
@@ -548,6 +550,13 @@ open class RTMPStream: NetStream {
 }
 
 extension RTMPStream {
+    func releaseStream() {
+        guard let rtmpConnection, let name = info.resourceName, rtmpConnection.flashVer.contains("FMLE/") else {
+            return
+        }
+        rtmpConnection.call("releaseStream", responder: nil, arguments: name)
+    }
+    
     func FCPublish() {
         guard let rtmpConnection, let name = info.resourceName, rtmpConnection.flashVer.contains("FMLE/") else {
             return
