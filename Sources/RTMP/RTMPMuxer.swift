@@ -31,7 +31,7 @@ extension RTMPMuxer: AudioCodecDelegate {
 
     func audioCodec(_ codec: AudioCodec, didOutput audioFormat: AVAudioFormat) {
         var buffer = Data([RTMPMuxer.aac, FLVAACPacketType.seq.rawValue])
-        buffer.append(contentsOf: AudioSpecificConfig(formatDescription: audioFormat.formatDescription).bytes)
+        buffer.append(contentsOf: AudioSpecificConfig(formatDescription: audioFormat.formatDescription)!.bytes)
         delegate?.muxer(self, didOutputAudio: buffer, withTimestamp: 0)
     }
 
