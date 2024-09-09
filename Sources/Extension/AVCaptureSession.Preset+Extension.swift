@@ -1,15 +1,11 @@
 import AVFoundation
 import Foundation
 
-#if os(macOS)
+#if os(iOS) || os(tvOS) || os(macOS)
+@available(tvOS 17.0, *)
 extension AVCaptureSession.Preset {
-    @available(macOS, obsoleted: 10.15)
-    private static let hd1920x1080 = AVCaptureSession.Preset(rawValue: "")
-}
-#endif
+    static let `default`: AVCaptureSession.Preset = .hd1280x720
 
-#if os(iOS) || os(macOS)
-extension AVCaptureSession.Preset {
     var width: Int32? {
         switch self {
         case .hd1920x1080:

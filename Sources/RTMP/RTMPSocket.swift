@@ -1,106 +1,210 @@
 import Foundation
+import Network
 
-// MARK: -
-final class RTMPSocket: NetSocket, RTMPSocketCompatible {
-    var readyState: RTMPSocketReadyState = .uninitialized {
+final actor RTMPSocket {
+    static let defaultWindowSizeC = Int(UInt8.max)
+
+    enum Error: Swift.Error {
+        case invalidState
+        case endOfStream
+        case connectionTimedOut
+        case connectionNotEstablished(_ error: NWError?)
+    }
+
+    private var timeout: UInt64 = 15
+    private var connected = false
+    private var windowSizeC = RTMPSocket.defaultWindowSizeC
+    private var securityLevel: StreamSocketSecurityLevel = .none {
         didSet {
-            delegate?.socket(self, readyState: readyState)
+            switch securityLevel {
+            case .ssLv2, .ssLv3, .tlSv1, .negotiatedSSL:
+                parameters = .tls
+            default:
+                parameters = .tcp
+            }
         }
     }
-    var timestamp: TimeInterval {
-        handshake.timestamp
-    }
-    var chunkSizeC: Int = RTMPChunk.defaultSize
-    var chunkSizeS: Int = RTMPChunk.defaultSize
-    weak var delegate: (any RTMPSocketDelegate)?
-    private var handshake = RTMPHandshake()
-
-    override var totalBytesIn: Atomic<Int64> {
+    private var totalBytesIn = 0
+    private var queueBytesOut = 0
+    private var totalBytesOut = 0
+    private var parameters: NWParameters = .tcp
+    private var connection: NWConnection? {
         didSet {
-            delegate?.socket(self, totalBytesIn: totalBytesIn.value)
+            oldValue?.viabilityUpdateHandler = nil
+            oldValue?.stateUpdateHandler = nil
+            oldValue?.forceCancel()
+        }
+    }
+    private var outputs: AsyncStream<Data>.Continuation?
+    private var qualityOfService: DispatchQoS = .userInitiated
+    private var continuation: CheckedContinuation<Void, any Swift.Error>?
+    private lazy var networkQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.RTMPSocket.network", qos: qualityOfService)
+
+    init() {
+    }
+
+    init(qualityOfService: DispatchQoS, securityLevel: StreamSocketSecurityLevel) {
+        self.qualityOfService = qualityOfService
+        self.securityLevel = securityLevel
+    }
+
+    func connect(_ name: String, port: Int) async throws {
+        guard !connected else {
+            throw Error.invalidState
+        }
+        totalBytesIn = 0
+        totalBytesOut = 0
+        queueBytesOut = 0
+        do {
+            let connection = NWConnection(to: NWEndpoint.hostPort(host: .init(name), port: .init(integerLiteral: NWEndpoint.Port.IntegerLiteralType(port))), using: parameters)
+            self.connection = connection
+            try await withCheckedThrowingContinuation { (checkedContinuation: CheckedContinuation<Void, Swift.Error>) -> Void in
+                self.continuation = checkedContinuation
+                Task {
+                    try? await Task.sleep(nanoseconds: timeout * 1_000_000_000)
+                    guard let continuation else {
+                        return
+                    }
+                    continuation.resume(throwing: Error.connectionTimedOut)
+                    self.continuation = nil
+                    close()
+                }
+                connection.stateUpdateHandler = { state in
+                    Task { await self.stateDidChange(to: state) }
+                }
+                connection.viabilityUpdateHandler = { viability in
+                    Task { await self.viabilityDidChange(to: viability) }
+                }
+                connection.start(queue: networkQueue)
+            }
+        } catch {
+            throw error
         }
     }
 
-    override var connected: Bool {
-        didSet {
-            if connected {
-                doOutput(data: handshake.c0c1packet)
-                readyState = .versionSent
+    func send(_ data: Data) {
+        guard connected else {
+            return
+        }
+        queueBytesOut += data.count
+        outputs?.yield(data)
+    }
+
+    func recv() -> AsyncStream<Data> {
+        AsyncStream<Data> { continuation in
+            Task {
+                do {
+                    while connected {
+                        let data = try await recv()
+                        continuation.yield(data)
+                        totalBytesIn += data.count
+                    }
+                } catch {
+                    continuation.finish()
+                }
+            }
+        }
+    }
+
+    func close(_ error: NWError? = nil) {
+        guard connection != nil else {
+            return
+        }
+        if let continuation {
+            continuation.resume(throwing: Error.connectionNotEstablished(error))
+            self.continuation = nil
+        }
+        connected = false
+        outputs = nil
+        connection = nil
+        continuation = nil
+    }
+
+    private func stateDidChange(to state: NWConnection.State) {
+        switch state {
+        case .ready:
+            logger.info("Connection is ready.")
+            connected = true
+            let (stream, continuation) = AsyncStream<Data>.makeStream()
+            Task {
+                for await data in stream where connected {
+                    try await send(data)
+                    totalBytesOut += data.count
+                    queueBytesOut -= data.count
+                }
+            }
+            self.outputs = continuation
+            self.continuation?.resume()
+            self.continuation = nil
+        case .waiting(let error):
+            logger.warn("Connection waiting:", error)
+            close(error)
+        case .setup:
+            logger.debug("Connection is setting up.")
+        case .preparing:
+            logger.debug("Connection is preparing.")
+        case .failed(let error):
+            logger.warn("Connection failed:", error)
+            close(error)
+        case .cancelled:
+            logger.info("Connection cancelled.")
+            close()
+        @unknown default:
+            logger.error("Unknown connection state.")
+        }
+    }
+
+    private func viabilityDidChange(to viability: Bool) {
+        logger.info("Connection viability changed to ", viability)
+        if viability == false {
+            close()
+        }
+    }
+
+    private func send(_ data: Data) async throws {
+        return try await withCheckedThrowingContinuation { continuation in
+            guard let connection else {
+                continuation.resume(throwing: Error.invalidState)
                 return
             }
-            readyState = .closed
-            for event in events {
-                delegate?.dispatch(event: event)
-            }
-            events.removeAll()
-        }
-    }
-    private var events: [Event] = []
-
-    @discardableResult
-    func doOutput(chunk: RTMPChunk) -> Int {
-        let chunks: [Data] = chunk.split(chunkSizeS)
-        for i in 0..<chunks.count - 1 {
-            doOutput(data: chunks[i])
-        }
-        doOutput(data: chunks.last!)
-        if logger.isEnabledFor(level: .trace) {
-            logger.trace(chunk)
-        }
-        return chunk.message!.length
-    }
-
-    override func listen() {
-        switch readyState {
-        case .versionSent:
-            if inputBuffer.count < RTMPHandshake.sigSize + 1 {
-                break
-            }
-            doOutput(data: handshake.c2packet(inputBuffer))
-            inputBuffer.removeSubrange(0...RTMPHandshake.sigSize)
-            readyState = .ackSent
-            if RTMPHandshake.sigSize <= inputBuffer.count {
-                listen()
-            }
-        case .ackSent:
-            if inputBuffer.count < RTMPHandshake.sigSize {
-                break
-            }
-            inputBuffer.removeAll()
-            readyState = .handshakeDone
-        case .handshakeDone:
-            if inputBuffer.isEmpty {
-                break
-            }
-            let bytes: Data = inputBuffer
-            inputBuffer.removeAll()
-            delegate?.socket(self, data: bytes)
-        default:
-            break
+            connection.send(content: data, completion: .contentProcessed { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                continuation.resume()
+            })
         }
     }
 
-    override func initConnection() {
-        handshake.clear()
-        readyState = .uninitialized
-        chunkSizeS = RTMPChunk.defaultSize
-        chunkSizeC = RTMPChunk.defaultSize
-        super.initConnection()
-    }
-
-    override func deinitConnection(isDisconnected: Bool) {
-        if isDisconnected {
-            let data: ASObject = (readyState == .handshakeDone) ?
-                RTMPConnection.Code.connectClosed.data("") : RTMPConnection.Code.connectFailed.data("")
-            events.append(Event(type: .rtmpStatus, bubbles: false, data: data))
+    private func recv() async throws -> Data {
+        return try await withCheckedThrowingContinuation { continuation in
+            guard let connection else {
+                continuation.resume(throwing: Error.invalidState)
+                return
+            }
+            connection.receive(minimumIncompleteLength: 0, maximumLength: windowSizeC) { content, _, _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                if let content {
+                    continuation.resume(returning: content)
+                } else {
+                    continuation.resume(throwing: Error.endOfStream)
+                }
+            }
         }
-        readyState = .closing
-        super.deinitConnection(isDisconnected: isDisconnected)
+    }
+}
+
+extension RTMPSocket: NetworkTransportReporter {
+    // MARK: NetworkTransportReporter
+    func makeNetworkMonitor() async -> NetworkMonitor {
+        return .init(self)
     }
 
-    override func didTimeout() {
-        deinitConnection(isDisconnected: false)
-        delegate?.dispatch(.ioError, bubbles: false, data: nil)
-        logger.warn("connection timedout")
+    func makeNetworkTransportReport() -> NetworkTransportReport {
+        return .init(queueBytesOut: queueBytesOut, totalBytesIn: totalBytesIn, totalBytesOut: totalBytesOut)
     }
 }

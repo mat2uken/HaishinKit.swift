@@ -43,9 +43,9 @@ final class AMFReference {
         nil
     }
 
-    func indexOf(_ value: ASObject) -> Int? {
+    func indexOf(_ value: AMFObject) -> Int? {
         for (index, data) in objects.enumerated() {
-            if let data: ASObject = data as? ASObject, data.description == value.description {
+            if let data: AMFObject = data as? AMFObject, data.description == value.description {
                 return index
             }
         }
@@ -91,7 +91,7 @@ final class AMF3Serializer: ByteArray {
 extension AMF3Serializer: AMFSerializer {
     // MARK: AMFSerializer
     @discardableResult
-    func serialize(_ value: Any?) -> Self {
+    func serialize(_ value: (any Sendable)?) -> Self {
         if value == nil {
             return writeUInt8(AMF3Type.null.rawValue)
         }
@@ -114,6 +114,8 @@ extension AMF3Serializer: AMFSerializer {
             return serialize(Double(value))
         case let value as Float:
             return serialize(Double(value))
+        case let value as CGFloat:
+            return serialize(Double(value))
         case let value as Double:
             return serialize(Double(value))
         case let value as Date:
@@ -122,16 +124,16 @@ extension AMF3Serializer: AMFSerializer {
             return serialize(value)
         case let value as Bool:
             return serialize(value)
-        case let value as ASArray:
+        case let value as AMFArray:
             return serialize(value)
-        case let value as ASObject:
+        case let value as AMFObject:
             return serialize(value)
         default:
             return writeUInt8(AMF3Type.undefined.rawValue)
         }
     }
 
-    func deserialize() throws -> Any? {
+    func deserialize() throws -> (any Sendable)? {
         guard let type = AMF3Type(rawValue: try readUInt8()) else {
             throw AMFSerializerError.deserialize
         }
@@ -139,7 +141,7 @@ extension AMF3Serializer: AMFSerializer {
         switch type {
         case .undefined:
             position += 1
-            return kASUndefined
+            return kAMFUndefined
         case .null:
             position += 1
             return nil
@@ -154,17 +156,17 @@ extension AMF3Serializer: AMFSerializer {
         case .string:
             return try deserialize() as String
         case .xml:
-            return try deserialize() as ASXMLDocument
+            return try deserialize() as AMFXMLDocument
         case .date:
             return try deserialize() as Date
         case .array:
-            return try deserialize() as ASArray
+            return try deserialize() as AMFArray
         case .object:
-            return try deserialize() as ASObject
+            return try deserialize() as AMFObject
         case .xmlString:
-            return try deserialize() as ASXML
+            return try deserialize() as AMFXML
         case .byteArray:
-            return try deserialize() as ByteArray
+            return try deserialize() as Data
         case .vectorInt:
             return try deserialize() as [Int32]
         case .vectorUInt:
@@ -172,7 +174,7 @@ extension AMF3Serializer: AMFSerializer {
         case .vectorNumber:
             return try deserialize() as [Double]
         case .vectorObject:
-            return try deserialize() as [Any?]
+            return try deserialize() as [(any Sendable)?]
         case .dictionary:
             assertionFailure("Unsupported")
             return nil
@@ -248,7 +250,7 @@ extension AMF3Serializer: AMFSerializer {
      - seealso: 3.9 XML type
      */
     @discardableResult
-    func serialize(_ value: ASXMLDocument) -> Self {
+    func serialize(_ value: AMFXMLDocument) -> Self {
         writeUInt8(AMF3Type.xml.rawValue)
         if let index: Int = reference.indexOf(value) {
             return serializeU29(index << 1)
@@ -258,18 +260,18 @@ extension AMF3Serializer: AMFSerializer {
         return serialize(utf8.count << 1 | 0x01).writeBytes(utf8)
     }
 
-    func deserialize() throws -> ASXMLDocument {
+    func deserialize() throws -> AMFXMLDocument {
         guard try readUInt8() == AMF3Type.xml.rawValue else {
             throw AMFSerializerError.deserialize
         }
         let refs: Int = try deserializeU29()
         if (refs & 0x01) == 0 {
-            guard let document: ASXMLDocument = try reference.getObject(refs >> 1) as? ASXMLDocument else {
+            guard let document: AMFXMLDocument = try reference.getObject(refs >> 1) as? AMFXMLDocument else {
                 throw AMFSerializerError.deserialize
             }
             return document
         }
-        let document = ASXMLDocument(data: try readUTF8Bytes(refs >> 1))
+        let document = AMFXMLDocument(data: try readUTF8Bytes(refs >> 1))
         reference.objects.append(document)
         return document
     }
@@ -307,7 +309,7 @@ extension AMF3Serializer: AMFSerializer {
      - seealso: 3.11 Array type
      */
     @discardableResult
-    func serialize(_ value: ASArray) -> Self {
+    func serialize(_ value: AMFArray) -> Self {
         writeUInt8(AMF3Type.array.rawValue)
         if let index: Int = reference.indexOf(value) {
             return serializeU29(index << 1)
@@ -324,11 +326,11 @@ extension AMF3Serializer: AMFSerializer {
         return self
     }
 
-    func deserialize() throws -> ASArray {
+    func deserialize() throws -> AMFArray {
         guard try readUInt8() == AMF3Type.array.rawValue else {
             throw AMFSerializerError.deserialize
         }
-        return ASArray()
+        return AMFArray()
     }
 
     /**
@@ -336,7 +338,7 @@ extension AMF3Serializer: AMFSerializer {
      - note: ASObject = Dictionary<String, Any?>
      */
     @discardableResult
-    func serialize(_ value: ASObject) -> Self {
+    func serialize(_ value: AMFObject) -> Self {
         writeUInt8(AMF3Type.object.rawValue)
         if let index: Int = reference.indexOf(value) {
             return serializeU29(index << 1)
@@ -348,18 +350,18 @@ extension AMF3Serializer: AMFSerializer {
         return serialize("")
     }
 
-    func deserialize() throws -> ASObject {
+    func deserialize() throws -> AMFObject {
         guard try readUInt8() == AMF3Type.object.rawValue else {
             throw AMFSerializerError.deserialize
         }
-        return ASObject()
+        return AMFObject()
     }
 
     /**
      - seealso: 3.13 XML type
      */
     @discardableResult
-    func serialize(_ value: ASXML) -> Self {
+    func serialize(_ value: AMFXML) -> Self {
         writeUInt8(AMF3Type.xmlString.rawValue)
         if let index: Int = reference.indexOf(value) {
             return serializeU29(index << 1)
@@ -369,18 +371,18 @@ extension AMF3Serializer: AMFSerializer {
         return serialize(utf8.count << 1 | 0x01).writeBytes(utf8)
     }
 
-    func deserialize() throws -> ASXML {
+    func deserialize() throws -> AMFXML {
         guard try readUInt8() == AMF3Type.xml.rawValue else {
             throw AMFSerializerError.deserialize
         }
         let refs: Int = try deserializeU29()
         if (refs & 0x01) == 0 {
-            guard let xml: ASXML = try reference.getObject(refs >> 1) as? ASXML else {
+            guard let xml: AMFXML = try reference.getObject(refs >> 1) as? AMFXML else {
                 throw AMFSerializerError.deserialize
             }
             return xml
         }
-        let xml = ASXML(data: try readUTF8Bytes(refs >> 1))
+        let xml = AMFXML(data: try readUTF8Bytes(refs >> 1))
         reference.objects.append(xml)
         return xml
     }
@@ -390,12 +392,12 @@ extension AMF3Serializer: AMFSerializer {
      - note: flash.utils.ByteArray = lf.ByteArray
      */
     @discardableResult
-    func serialize(_ value: ByteArray) -> Self {
+    func serialize(_ value: Data) -> Self {
         self
     }
 
-    func deserialize() throws -> ByteArray {
-        ByteArray()
+    func deserialize() throws -> Data {
+        Data()
     }
 
     /**
@@ -474,7 +476,7 @@ extension AMF3Serializer: AMFSerializer {
      - seealso: 3.15 Vector Type, vector-object-type
      */
     @discardableResult
-    func serialize(_ value: [Any?]) -> Self {
+    func serialize(_ value: [(any Sendable)?]) -> Self {
         writeUInt8(AMF3Type.vectorObject.rawValue)
         if let index: Int = reference.indexOf(value) {
             return serializeU29(index << 1)
@@ -487,7 +489,7 @@ extension AMF3Serializer: AMFSerializer {
         return self
     }
 
-    func deserialize() throws -> [Any?] {
+    func deserialize() throws -> [(any Sendable)?] {
         guard try readUInt8() == AMF3Type.array.rawValue else {
             throw AMFSerializerError.deserialize
         }

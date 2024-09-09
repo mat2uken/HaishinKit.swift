@@ -1,13 +1,17 @@
 import AVFAudio
 import Foundation
 
-/// The AudioCodecSettings class  specifying audio compression settings.
-public struct AudioCodecSettings: Codable {
-    /// The defualt value.
+/// Constraints on the audio codec  compression settings.
+public struct AudioCodecSettings: Codable, Sendable {
+    /// The default value.
     public static let `default` = AudioCodecSettings()
+    /// The default bitRate. The value is 64,000 bps.
+    public static let defaultBitRate = 64 * 1000
+    /// Maximum number of channels supported by the system
+    public static let maximumNumberOfChannels: UInt32 = 8
 
     /// The type of the AudioCodec supports format.
-    public enum Format: Codable {
+    enum Format: Codable {
         /// The AAC format.
         case aac
         /// The PCM format.
@@ -27,7 +31,9 @@ public struct AudioCodecSettings: Codable {
             case .aac:
                 return UInt32(MPEG4ObjectID.AAC_LC.rawValue)
             case .pcm:
-                return kAudioFormatFlagIsNonInterleaved | kAudioFormatFlagIsPacked | kAudioFormatFlagIsFloat
+                return kAudioFormatFlagIsNonInterleaved
+                    | kAudioFormatFlagIsPacked
+                    | kAudioFormatFlagIsFloat
             }
         }
 
@@ -76,6 +82,24 @@ public struct AudioCodecSettings: Codable {
             }
         }
 
+        var inputBufferCounts: Int {
+            switch self {
+            case .aac:
+                return 6
+            case .pcm:
+                return 1
+            }
+        }
+
+        var outputBufferCounts: Int {
+            switch self {
+            case .aac:
+                return 1
+            case .pcm:
+                return 24
+            }
+        }
+
         func makeAudioBuffer(_ format: AVAudioFormat) -> AVAudioBuffer? {
             switch self {
             case .aac:
@@ -85,48 +109,46 @@ public struct AudioCodecSettings: Codable {
             }
         }
 
-        func makeAudioFormat(_ inSourceFormat: AudioStreamBasicDescription?) -> AVAudioFormat? {
-            guard let inSourceFormat else {
-                return nil
-            }
-            switch self {
-            case .aac:
-                var streamDescription = AudioStreamBasicDescription(
-                    mSampleRate: inSourceFormat.mSampleRate,
-                    mFormatID: formatID,
-                    mFormatFlags: formatFlags,
-                    mBytesPerPacket: bytesPerPacket,
-                    mFramesPerPacket: framesPerPacket,
-                    mBytesPerFrame: bytesPerFrame,
-                    mChannelsPerFrame: inSourceFormat.mChannelsPerFrame,
-                    mBitsPerChannel: bitsPerChannel,
-                    mReserved: 0
-                )
-                return AVAudioFormat(streamDescription: &streamDescription)
-            case .pcm:
-                return AVAudioFormat(
-                    commonFormat: .pcmFormatFloat32,
-                    sampleRate: inSourceFormat.mSampleRate,
-                    channels: inSourceFormat.mChannelsPerFrame,
-                    interleaved: true
-                )
-            }
+        func makeOutputAudioFormat(_ format: AVAudioFormat) -> AVAudioFormat? {
+            let config = AudioSpecificConfig.ChannelConfiguration(channelCount: format.channelCount)
+            var streamDescription = AudioStreamBasicDescription(
+                mSampleRate: format.sampleRate,
+                mFormatID: formatID,
+                mFormatFlags: formatFlags,
+                mBytesPerPacket: bytesPerPacket,
+                mFramesPerPacket: framesPerPacket,
+                mBytesPerFrame: bytesPerFrame,
+                mChannelsPerFrame: min(
+                    config?.channelCount ?? format.channelCount,
+                    AudioCodecSettings.maximumNumberOfChannels
+                ),
+                mBitsPerChannel: bitsPerChannel,
+                mReserved: 0
+            )
+            return AVAudioFormat(
+                streamDescription: &streamDescription,
+                channelLayout: config?.audioChannelLayout
+            )
         }
     }
 
     /// Specifies the bitRate of audio output.
     public var bitRate: Int
 
-    /// Specifies the output format.
-    public var format: AudioCodecSettings.Format
+    /// Specifies the mixes the channels or not.
+    public var downmix: Bool
 
-    /// Create an new AudioCodecSettings instance.
-    public init(
-        bitRate: Int = 64 * 1000,
-        format: AudioCodecSettings.Format = .aac
-    ) {
+    /// Specifies the map of the output to input channels.
+    public var channelMap: [Int]?
+
+    /// Specifies the output format.
+    var format: AudioCodecSettings.Format = .aac
+
+    /// Creates a new instance.
+    public init(bitRate: Int = AudioCodecSettings.defaultBitRate, downmix: Bool = true, channelMap: [Int]? = nil) {
         self.bitRate = bitRate
-        self.format = format
+        self.downmix = downmix
+        self.channelMap = channelMap
     }
 
     func apply(_ converter: AVAudioConverter?, oldValue: AudioCodecSettings?) {
@@ -142,5 +164,23 @@ public struct AudioCodecSettings: Codable {
             })?.intValue ?? bitRate
             converter.bitRate = min(maxAvailableBitRate, max(minAvailableBitRate, bitRate))
         }
+
+        if downmix != oldValue?.downmix {
+            converter.downmix = downmix
+        }
+
+        if channelMap != oldValue?.channelMap, let newChannelMap = validatedChannelMap(converter) {
+            converter.channelMap = newChannelMap
+        }
+    }
+
+    private func validatedChannelMap(_ converter: AVAudioConverter) -> [NSNumber]? {
+        guard let channelMap, channelMap.count == converter.outputFormat.channelCount else {
+            return nil
+        }
+        for inputChannel in channelMap where converter.inputFormat.channelCount <= inputChannel {
+            return nil
+        }
+        return channelMap.map { NSNumber(value: $0) }
     }
 }

@@ -17,7 +17,9 @@ extension AVCaptureSession {
         }
     }
 }
-#elseif os(iOS) || os(macOS)
+#endif
+
+@available(tvOS 17.0, *)
 extension AVCaptureSession {
     @available(iOS, obsoleted: 16.0)
     var isMultitaskingCameraAccessSupported: Bool {
@@ -34,5 +36,4 @@ extension AVCaptureSession {
         }
     }
 }
-#endif
 // swiftlint:enable unused_setter_value
